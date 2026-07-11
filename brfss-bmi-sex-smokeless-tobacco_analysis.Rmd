@@ -1,0 +1,465 @@
+---
+title: "BRFSS-Smokeless-Tobacco-Analysis"
+author: "Vasiliki - Maria Tzouma"
+output:
+  html_document:
+    fig_height: 4
+    highlight: pygments
+    theme: spacelab
+  pdf_document: default
+---
+
+```{r load-packages, include = FALSE}
+knitr::opts_chunk$set(results =FALSE) 
+
+library(ggplot2)
+library(dplyr)
+library(car)
+
+load("brfss2013.RData")
+```
+
+## Introduction
+
+Smokeless tobacco products, including chewing tobacco, snuff and snus, are commonly used alternatives to combustible cigarettes. Although these products do not involve inhaling tobacco smoke, they are not harmless. Smokeless tobacco contains nicotine, a highly addictive substance, together with numerous carcinogenic compounds, particularly tobacco-specific nitrosamines, which are known to increase the risk of cancers of the oral cavity, oesophagus and pancreas. Regular use has also been associated with oral diseases such as leukoplakia, periodontal disease and tooth loss (Centers for Disease Control and Prevention, 2024b).
+
+Although tobacco use has declined in recent decades, smokeless tobacco continues to represent an important public health issue in the United States. Its use is considerably more common among men than women and is particularly prevalent in rural populations (Centers for Disease Control and Prevention, 2024c). West Virginia is of particular interest because it consistently reports one of the highest prevalences of smokeless tobacco use among adults in the United States. The state also has a high prevalence of overweight and obesity, making it an appropriate population in which to investigate a potential association between smokeless tobacco use and Body Mass Index (BMI) (Centers for Disease Control and Prevention, 2024c).
+
+While the adverse health effects of smokeless tobacco have been well established, considerably less attention has been given to its relationship with BMI. Investigating this relationship may improve our understanding of whether smokeless tobacco use is associated with BMI within populations where both obesity and smokeless tobacco use remain common.
+
+This study uses data from the 2013 Behavioural Risk Factor Surveillance System (BRFSS) to investigate two research questions among adults living in West Virginia.
+
+**Research Question 1: Is there an association between the use of smokeless tobacco products and Body Mass Index (BMI) among adults in West Virginia?**
+
+The first research question examines whether BMI differs between current users and non-users of smokeless tobacco products. Identifying whether such an association exists may contribute to future research investigating factors associated with BMI and population health.
+
+**Research Question 2: Is there an association between the sex of an individual and the use of smokeless tobacco products in West Virginia?**
+
+Previous research has consistently shown that smokeless tobacco use is substantially more common among men than women in the United States (Centers for Disease Control and Prevention, 2024c). This study investigates whether the same pattern is observed among adults living in West Virginia by comparing the proportion of male and female smokeless tobacco users. 
+
+Overall, this study aims to investigate the associations between smokeless tobacco use, BMI and sex among adults in West Virginia using data from the 2013 BRFSS. 
+
+* * *
+
+## Data
+
+The data used in this study were obtained from the *"The Behavioral Risk Factor Surveillance System (BRFSS)"* , a nationwide health surveillance system conducted by the Centers for Disease Control and Prevention (CDC) in collaboration with state health departments. The BRFSS collects information on health-related risk behaviours, chronic health conditions, access to health care and the use of preventive health services among the non-institutionalised adult population of the United States (Centers for Disease Control and Prevention, 2024a).
+
+Data are collected through monthly telephone interviews conducted across all 50 states, the District of Columbia and participating US territories. The information gathered is used to monitor population health trends, identify behavioural risk factors and support the planning and evaluation of public health programmes (Centers for Disease Control and Prevention, 2024a).
+
+The BRFSS was established in 1984 and is conducted annually. Unlike a longitudinal study, the BRFSS is a repeated cross-sectional survey, with a new sample of adults being selected each year rather than following the same participants over time. The present study used data from the 2013 BRFSS survey, which included 491,775 participants.
+
+
+**Variable selection**
+
+Three variables were selected for the analysis: `usenow3`, `X_bmi5` and `sex`.
+
+`usenow3`: This categorical variable represents the current use of smokeless tobacco products, including chewing tobacco, snuff and snus. Participants could respond with "Every day", "Some days" or "Not at all". Responses recorded as "Don't know/Not sure", "Refused", or missing values were treated as `NA`.
+
+`X_bmi5`: This numerical variable represents the calculated Body Mass Index (BMI) of each participant based on self-reported height and weight. BMI values were stored with two implied decimal places. According to the BRFSS coding guidelines, values below 12, above 99.99, and observations from pregnant participants were classified as missing (`NA`).
+
+`sex`: This categorical variable represents the biological sex of each participant and contains two categories: Male and Female.
+
+
+**Sample formation and analysis**
+
+Before proceeding with the analysis, the selected variables were inspected for missing values (`NA`). Missing observations were identified in two of the three variables included in this study:
+
+`usenow3`: 14,014 NA values
+`X_bmi5`: 26,721 NA values
+`sex`: 0 NA values
+
+
+Only observations from West Virginia were selected for further analysis because the state reports one of the highest prevalences of smokeless tobacco use in the United States and also has a high prevalence of obesity. A subset named `Investigation_sample` was created from the BRFSS dataset using the following R code:
+
+
+Sample:
+```{r}
+Investigation_sample <- subset(brfss2013, X_state == "West Virginia")
+```
+
+The resulting subset contained 5,899 observations across 330 variables, which formed the dataset used throughout the remainder of the analysis.
+
+* * *
+
+**Univariate analysis: Smokeless Tobacco Products Use**
+
+Before performing the univariate analysis, the structure of the `usenow3` variable was examined using the `str()` function. The output confirmed that `usenow3` was a categorical variable with three response levels.
+
+Initially, participants could respond "Every day", "Some days", or "Not at all". Since the objective of this study was to compare current users with non-users rather than analyse the frequency of use, the responses "Every day" and "Some days" were combined into a single category labelled "Currently Uses Smokeless Tobacco", while "Not at all" was labelled "Does Not Currently Use Smokeless Tobacco" using the `ifelse()` function. The recoded variable was then converted into a factor with the desired order of levels.
+
+
+```{r}
+brfss2013$usenow3 <- ifelse(
+  brfss2013$usenow3 == "Every day" |
+  brfss2013$usenow3 == "Some days",
+  "Currently Uses Smokeless Tobacco",
+  "Does Not Currently Use Smokeless Tobacco"
+)
+
+Investigation_sample <- subset(brfss2013, X_state == "West Virginia")
+
+Investigation_sample$usenow3 <- as.factor(Investigation_sample$usenow3)
+
+Investigation_sample$usenow3 <- factor(
+  Investigation_sample$usenow3,
+  levels = c(
+    "Currently Uses Smokeless Tobacco",
+    "Does Not Currently Use Smokeless Tobacco"
+  )
+)
+```
+
+The variable was subsequently inspected for missing values using the `is.na()` and `sum()` functions. Given that only a small proportion of observations contained missing values, these were replaced with the most frequently occurring category (the mode) to retain all observations for the subsequent analyses.
+
+
+```{r}
+sum(is.na(Investigation_sample$usenow3))
+
+Investigation_sample$usenow3[is.na(Investigation_sample$usenow3)] <-
+  names(which.max(table(Investigation_sample$usenow3)))
+```
+
+The numbers of current users and non-users were then calculated using the `sum()` function. Of the 5,899 participants included in the sample, 400 were classified as current users of smokeless tobacco, while 5,499 were classified as non-users.
+
+To further examine the distribution of the variable, a frequency table and proportion table were generated. Current users represented 6.8% of the sample, whereas non-users accounted for 93.2%. This marked difference in group sizes should be considered when interpreting the results of subsequent analyses.
+
+A bar chart was produced using the `ggplot2` package to visualise the distribution of current smokeless tobacco users and non-users. The plot clearly illustrates the substantially larger number of non-users compared with current users.
+
+```{r}
+table.tobacco <- table(Investigation_sample$usenow3)
+prop.table(table.tobacco)
+
+ggplot(Investigation_sample, aes(x = usenow3)) +
+  geom_bar(fill = "#c1d08a", width = 0.5, colour = "black") +
+  ggtitle("Usage of Smokeless Tobacco Products Among Participants") +
+  labs(
+    x = "Smokeless Tobacco Product Use",
+    y = "Frequency"
+  ) +
+  theme_classic() +
+  theme(
+    plot.title = element_text(
+      hjust = 0.5,
+      size = 16,
+      face = "bold"
+    )
+  ) +
+  scale_y_continuous(breaks = seq(0, 6000, by = 500))
+
+```
+
+**Univariate analysis: Body Mass Index (BMI)**
+
+The structure of the `X_bmi5` variable was first examined using the `str()` function, which confirmed that Body Mass Index (BMI) was recorded as a numerical variable. Missing values were identified using the `is.na()` and `sum()` functions. Since BMI is a continuous variable, missing observations were imputed using the median rather than the mean. The median was selected because it is less sensitive to extreme values and provides a more robust measure of central tendency when the distribution is not perfectly symmetrical.
+
+The mean and median BMI values were calculated to assess the overall distribution of the data. The mean BMI was 28.66, while the median was 27.54. Although these values were relatively close, the slightly higher mean suggested a mild positive skew, indicating that a small number of higher BMI values influenced the average. Consequently, the median was used to impute missing observations.
+
+The BRFSS stores BMI values with two implied decimal places. Therefore, all observations were divided by 100 to obtain the actual BMI values before further analysis.
+
+A histogram was generated using the `ggplot2` package to visualise the distribution of BMI values. The histogram indicated an approximately unimodal distribution with a slight positive skew, which is consistent with the distribution commonly observed for BMI in adult populations.
+
+To further describe the distribution, several measures of variability were calculated using the `var()`, `sd()`, `quantile()`, `IQR()` and `range()` functions.
+
+The calculated variance was 42.43, while the standard deviation was 6.51, indicating moderate variability in BMI across the sample.
+
+The first quartile (Q1) was 24.33, indicating that 25% of participants had a BMI below this value. The third quartile (Q3) was 31.66, meaning that 75% of participants had a BMI below this value. Consequently, the middle 50% of BMI observations fell between 24.33 and 31.66, resulting in an interquartile range (IQR) of 7.33.
+
+The overall BMI values ranged from 13.73 to 71.80, demonstrating considerable variation across the sample.
+
+According to the Centers for Disease Control and Prevention (2024d), BMI is classified as follows:
+
+| BMI (kg/m²) | Classification |
+| ----------- | -------------- |
+| < 18.5      | Underweight    |
+| 18.5–24.9   | Healthy weight |
+| 25.0–29.9   | Overweight     |
+| ≥ 30.0      | Obesity        |
+
+
+The median BMI (27.54) fell within the overweight category and the third quartile exceeded 30. As a result, a substantial proportion of participants were classified as either overweight or obese. This finding is consistent with the high prevalence of obesity previously reported in West Virginia (Centers for Disease Control and Prevention, 2024d).
+
+```{r}
+Investigation_sample$X_bmi5[is.na(Investigation_sample$X_bmi5)] <- median(Investigation_sample$X_bmi5, na.rm = TRUE)
+
+sum(is.na(Investigation_sample$X_bmi5))
+
+Investigation_sample$X_bmi5 <- Investigation_sample$X_bmi5 / 100
+
+ggplot(Investigation_sample, aes(x = X_bmi5)) +
+  geom_histogram(binwidth = 5, fill = "#FFA500", color = "black") +
+  ggtitle("Distribution of Body Mass Index (BMI)") +
+  labs(x = "BMI", y = "Frequency") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, size = 16, face = "bold")) +
+  scale_x_continuous(breaks = seq(10, 100, by = 5))
+```
+
+```{r}
+mean(Investigation_sample$X_bmi5)
+median(Investigation_sample$X_bmi5)
+length(Investigation_sample$X_bmi5)
+
+var(Investigation_sample$X_bmi5)
+sd(Investigation_sample$X_bmi5)
+
+Q1 <- quantile(Investigation_sample$X_bmi5, 0.25)
+Q3 <- quantile(Investigation_sample$X_bmi5, 0.75)
+IQR <- IQR(Investigation_sample$X_bmi5)
+
+range(Investigation_sample$X_bmi5)
+```
+To identify potential outliers, a boxplot was generated using the `ggplot2` package. The boxplot revealed several observations above the upper whisker, while no lower outliers were identified.
+
+The upper and lower whiskers were calculated using the standard boxplot formulas:
+
+Upper whisker = `Q3 + 1.5 × IQR`
+Lower whisker = `Q1 – 1.5 × IQR`
+
+The upper whisker was 42.66, while the lower whisker was 13.34.
+
+The number of observations exceeding the upper whisker was then calculated using the `sum()` function. A total of 223 participants (3.78% of the sample) had BMI values above 42.66. These observations represent potential upper outliers according to the boxplot criterion and reflect a small proportion of participants with exceptionally high BMI values.
+
+```{r}
+upper.whisker <- Q3 + 1.5 * IQR
+lower.whisker <- Q1 - 1.5 * IQR
+
+sum(Investigation_sample$X_bmi5 > 42.655)
+
+percent_high.outliers <- (223 / 5899) * 100
+
+ggplot(Investigation_sample, aes(y = X_bmi5)) +
+  geom_boxplot(fill = "turquoise4", outlier.colour="black", outlier.shape=4, outlier.size=2) + 
+  ggtitle("Distribution of Body Mass Index (BMI)") +
+  labs(y = "BMI") +
+  theme_classic() +
+  scale_x_discrete() +
+  scale_y_continuous(breaks = seq(10, 100, by = 5))
+
+```
+
+**Univariate analysis: Participant's Sex **
+
+The `sex` variable was first examined using the `str()` function, confirming that it was a categorical variable. Missing values were assessed using the `is.na()` and `sum()` functions, revealing that no observations were missing.
+
+The number of male and female participants was then calculated using the `sum()` function. Of the 5,899 participants included in the analysis, 2,461 were male and 3,438 were female.
+
+To examine the distribution of the variable, a frequency table and proportion table were generated. Males represented 41.7% of the sample, while females accounted for 58.3%. Although females comprised the larger proportion of the sample, both groups were well represented for subsequent analyses.
+
+A bar chart was created using the `ggplot2` package to visualise the distribution of male and female participants.
+
+```{r}
+
+sum(is.na(Investigation_sample$sex))
+
+sum(Investigation_sample$sex == "Male")
+sum(Investigation_sample$sex == "Female")
+
+table.sex <- table(Investigation_sample$sex)
+prop.table(table.sex)
+
+ggplot(Investigation_sample, aes(x = sex)) +
+  geom_bar( fill = "#e74384", width=0.5, color = "black") +
+  ggtitle("Participant Sex Composition") +
+  labs(x = "Sex", y = "Frequency") +
+  theme_classic() + theme(plot.title = element_text(hjust = 0.5, size = 16, face = "bold"))
+
+```
+
+* * *
+## Exploratory data analysis
+
+Following the univariate analysis, the relationships between the selected variables were explored using bivariate analysis. Appropriate visualisations were selected according to the types of variables being compared in order to identify potential patterns before conducting formal statistical tests.
+
+**Is there an association between smokeless tobacco use and Body Mass Index (BMI)?**
+
+A boxplot and a faceted histogram were generated to explore the relationship between smokeless tobacco use (`usenow3`) and Body Mass Index (BMI) (`X_bmi5`). In this comparison, smokeless tobacco use was treated as the explanatory variable, while BMI was the response variable. The faceted histogram displays the BMI distribution separately for current users and non-users of smokeless tobacco.
+
+Visual inspection of both plots suggested that the BMI distributions of the two groups were broadly similar. However, the boxplot indicated that current smokeless tobacco users may have a slightly higher median BMI than non-users.
+
+
+```{r}
+ggplot(Investigation_sample, aes(x = usenow3, y = X_bmi5)) +
+  geom_boxplot(fill = "turquoise3",
+               outlier.colour = "black",
+               outlier.shape = 4,
+               outlier.size = 2) +
+  ggtitle("Association Between Smokeless Tobacco Use and Body Mass Index (BMI)") +
+  labs(x = "Smokeless Tobacco Product Use",
+       y = "BMI") +
+  theme_classic() +
+  scale_x_discrete() +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  scale_y_continuous(breaks = seq(10, 100, by = 5))
+
+ggplot(Investigation_sample, aes(x = X_bmi5)) +
+  geom_histogram(fill = "firebrick",
+                 colour = "black",
+                 binwidth = 2) +
+  facet_wrap(~ usenow3,
+             ncol = 1,
+             scales = "free_y") +
+  labs(x = "BMI",
+       y = "Frequency") +
+  ggtitle("Association Between Smokeless Tobacco Use and Body Mass Index (BMI)") +
+  scale_x_continuous(breaks = seq(10, 100, by = 5))
+```
+
+To further compare the two groups, the `tapply()` function was used to calculate the median, standard deviation, mean and range of BMI for current users and non-users.
+
+The median BMI among current smokeless tobacco users was 28.52, compared with 27.54 among non-users. Although the difference was relatively small, it suggested that current smokeless tobacco users tended to have a slightly higher BMI.
+
+The standard deviations were also similar between the two groups (6.38 for current users and 6.52 for non-users), indicating comparable variability in BMI.
+
+```{r}
+tapply(Investigation_sample$X_bmi5, Investigation_sample$usenow3, median)
+
+tapply(Investigation_sample$X_bmi5, Investigation_sample$usenow3, sd)
+
+tapply(Investigation_sample$X_bmi5, Investigation_sample$usenow3, mean)
+
+tapply(Investigation_sample$X_bmi5, Investigation_sample$usenow3, range)
+```
+The exploratory analysis suggested a possible association between smokeless tobacco use and BMI. However, visual inspection alone cannot determine whether the observed difference is statistically significant or simply due to sampling variation.
+
+Previous research has shown that smokeless tobacco use is considerably more common among men than women. Since sex may also be associated with BMI, it was considered a potential confounding variable and was included in a linear regression model.
+
+A linear regression model was fitted using `lm()`, with BMI as the response variable and smokeless tobacco use together with sex as explanatory variables.
+
+```{r}
+problem <- lm(X_bmi5 ~ usenow3 + sex,
+              data = Investigation_sample)
+
+summary(problem)
+```
+The regression model showed that sex was significantly associated with BMI after accounting for smokeless tobacco use (p = 0.00576). This suggests that sex should be considered as a potential confounding variable when examining the relationship between smokeless tobacco use and BMI.
+
+ **Is there an association between sex and smokeless tobacco use?**
+ 
+To explore the relationship between sex and smokeless tobacco use, a contingency table and a proportion table were created using the `table()` and `prop.table()` functions.
+
+The proportion table indicated that 92.5% of current smokeless tobacco users were male, while 7.5% were female. Among participants who did not currently use smokeless tobacco, approximately 38% were male and 62% were female.
+
+These findings were visualised using a stacked proportional bar chart.
+
+```{r}
+tablecomp2 <- table(Investigation_sample$sex,
+                    Investigation_sample$usenow3)
+
+prop.table(tablecomp2,
+           margin = 2)
+
+ggplot(Investigation_sample,
+       aes(x = sex,
+           fill = usenow3)) +
+  geom_bar(position = "fill") +
+  ggtitle("Association Between Sex and Smokeless Tobacco Use") +
+  labs(x = "Sex",
+       y = "Proportion",
+       fill = "Smokeless Tobacco Use") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  scale_fill_manual(values = c("Green",
+                               "tomato")) +
+  scale_y_continuous(breaks = seq(0, 1, by = 0.10))
+    
+```
+
+The exploratory analysis suggested that smokeless tobacco use was substantially more common among males than females in this sample. This observation is consistent with previous epidemiological studies conducted in the United States (Centers for Disease Control and Prevention, 2024c). Formal statistical testing of this association is presented in the following section.
+
+* * *
+
+## Inference
+
+Inferential statistical analyses were performed to determine whether the associations observed during the exploratory analysis were statistically significant.
+
+*Research Question 1: Is there an association between the use of smokeless tobacco products and Body Mass Index (BMI) in West Virginia?*
+
+Since BMI is a numerical variable and smokeless tobacco use consists of two independent groups (current users and non-users), an independent two-sample t-test was used to compare the mean BMI between the two groups.
+
+The hypotheses were defined as follows:
+
+Null hypothesis (H₀): There is no association between smokeless tobacco use and Body Mass Index (BMI) among adults in West Virginia.
+
+Alternative hypothesis (Hₐ): There is an association between smokeless tobacco use and Body Mass Index (BMI) among adults in West Virginia.
+
+Before performing the t-test, the assumptions of the test were considered.
+
+1) The observations should represent independent participants sampled from the population.
+2) The numerical variable should be approximately normally distributed within each group.
+3) The variances of the two groups should be approximately equal.
+
+The assumption of equal variances was assessed using Levene's test.
+
+The hypotheses for Levene's test were:
+
+H₀: The variances of the two groups are equal.
+
+Hₐ: The variances of the two groups are different.
+
+```{r}
+leveneTest(X_bmi5 ~ usenow3, data = Investigation_sample) 
+```
+Levene's test produced a p-value of 0.9042. Given that the p-value was greater than the significance level of 0.05, the null hypothesis could not be rejected. Therefore, there was insufficient evidence to conclude that the variances differed between the two groups, indicating that the assumption of equal variances was satisfied.
+
+The independent two-sample t-test was then performed.
+
+```{r}
+t.test(X_bmi5 ~ usenow3,
+       data = Investigation_sample,
+       var.equal = TRUE)
+```
+The t-test produced a p-value of 0.04958. Because 0.04958 < 0.05, the null hypothesis was rejected in favour of the alternative hypothesis. Therefore, there was sufficient statistical evidence to conclude that an association exists between smokeless tobacco use and BMI among adults in West Virginia.
+
+*Research Question 2: Is there an association between the sex of an individual and the use of smokeless tobacco products?*
+
+Both variables were categorical. As such, the association between sex and smokeless tobacco use was assessed using a Chi-square test of independence.
+
+The hypotheses were defined as follows:
+
+Null hypothesis (H₀): Sex and smokeless tobacco use are independent among adults in West Virginia.
+
+Alternative hypothesis (Hₐ): Sex and smokeless tobacco use are associated among adults in West Virginia.
+
+Before performing the Chi-square test, its assumptions were evaluated.
+
+The primary assumption is that all expected frequencies are greater than five.
+```{r}
+chisq.test(tablecomp2)$expected
+```
+All expected frequencies exceeded five, indicating that the assumption was satisfied.
+
+The Chi-square test was then performed. 
+
+```{r}
+chisq.test(tablecomp2, correct = FALSE)
+```
+The analysis produced a Chi-square statistic of 455.09 with 1 degree of freedom and a p-value < 2.2 × 10⁻¹⁶. Since the p-value was substantially smaller than 0.05, the null hypothesis was rejected. Therefore, there was strong statistical evidence of an association between sex and smokeless tobacco use among adults in West Virginia.
+
+All in all, the inferential analyses supported the findings of the exploratory analysis. A statistically significant association was observed between smokeless tobacco use and BMI, while a strong association was also identified between sex and smokeless tobacco use.
+
+## Conclusion
+
+In summary, this study investigated two research questions examining the relationship between smokeless tobacco use, Body Mass Index (BMI) and sex among adults living in West Virginia.
+
+The first research question examined whether smokeless tobacco use was associated with BMI. Current users of smokeless tobacco had a slightly higher BMI than non-users, and the statistical analysis indicated that this difference was significant. However, because the BRFSS data were collected at a single point in time, the results should not be interpreted as evidence that smokeless tobacco use causes changes in BMI.
+
+The second research question examined whether there was an association between sex and smokeless tobacco use. The analysis showed that smokeless tobacco use was considerably more common among males than females, which agrees with findings reported in previous studies (Centers for Disease Control and Prevention, 2024c).
+
+Throughout the project, univariate analysis, exploratory data analysis and inferential statistical tests were carried out using the variables usenow3, X_bmi5 and sex. Together, these analyses addressed both research questions and provided a clearer understanding of the relationships between the selected variables.
+
+This study also has several limitations. The BRFSS dataset is based on self-reported information, meaning that participants may not have reported their height, weight or tobacco use accurately. In addition, the cross-sectional design only allows relationships between variables to be examined and cannot establish cause-and-effect relationships. The analyses also showed that sex acted as a potential confounding variable, while other factors such as diet, physical activity, socioeconomic status and existing medical conditions were not included in the models.
+
+Overall, this study found a statistically significant association between smokeless tobacco use and BMI, as well as between sex and smokeless tobacco use, among adults living in West Virginia. Future studies could investigate these relationships further by including additional variables that may influence BMI and by using longitudinal data to determine whether these associations remain consistent over time.
+
+## Bibliography
+
+Centers for Disease Control and Prevention (2014) Behavioral Risk Factor Surveillance System: 2013 Codebook Report. Atlanta, GA: Centers for Disease Control and Prevention.
+
+Centers for Disease Control and Prevention (2024a) About BRFSS. Available at: https://www.cdc.gov/brfss/about/index.htm (Accessed: 11 July 2026).
+
+Centers for Disease Control and Prevention (2024b) Health Effects of Smokeless Tobacco. Available at: https://www.cdc.gov/tobacco/other-tobacco-products/smokeless-tobacco-health-effects.html (Accessed: 11 July 2026).
+
+Centers for Disease Control and Prevention (2024c) Smokeless Tobacco Product Use in the United States. Available at: https://www.cdc.gov/tobacco/other-tobacco-products/smokeless-product-use-in-the-us.html (Accessed: 11 July 2026).
+
+Centers for Disease Control and Prevention (2024d) About Body Mass Index (BMI). Available at: https://www.cdc.gov/bmi/about/index.html (Accessed: 11 July 2026).
